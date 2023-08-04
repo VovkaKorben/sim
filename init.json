@@ -1,0 +1,47 @@
+{
+    "lat": 60.167453290984675,
+    "lon": 24.95324654615486,
+    "ships": [
+        {
+            "shipname": "MyOwn",
+            "type": 0,
+            "maxspeed": 5,
+            "mmsi": 220223634,
+            "width": 3,
+            "height": 12,
+            "draught": 1.2,
+            "own":true,
+            "active":0
+        },
+        {
+            "shipname": "Tardis",
+            "type": 80,
+            "maxspeed": 10,
+            "mmsi": 225221211,
+            "width": 20,
+            "height": 100,
+            "draught": 10,
+            "active": 1
+        },
+        {
+            "shipname": "Aurora",
+            "type": 52,
+            "maxspeed": 12,
+            "mmsi": 230282733,
+            "width": 10,
+            "height": 30,
+            "draught": 2.5,
+            "active": 0
+        },
+        {
+            "shipname": "Borealis",
+            "type": 60,
+            "maxspeed": 25,
+            "mmsi": 250331299,
+            "width": 12,
+            "height": 70,
+            "draught": 3,
+            "active": 0
+        }
+    ]
+}
