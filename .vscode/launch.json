@@ -11,6 +11,15 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Python: sim.py",
+            "type": "python",
+            "request": "launch",
+            "program": "sim.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
+    
 }
