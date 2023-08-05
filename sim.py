@@ -1,4 +1,5 @@
-
+#ID NAME     MODE
+# 1 TARDIS
 """
 ship mode
 0 just wait stopped (second)
@@ -21,13 +22,13 @@ MODE_UDP = 1
 MODE_TCP = 2
 
 
-MODE = MODE_TCP
-# IP = "192.168.1.4"
+# MODE = MODE_TCP
+MODE = MODE_UDP
 IP = "192.168.1.10"
-# IP = "127.0.0.1"
 PORT = 17777
+NMEA_LINES_COUNT = 10
 
-DYNA_SHOW = False
+DYNA_SHOW = True
 USE_NETWORK = True
 
 UPD_INTERVAL = 0.1 # in seconds
@@ -35,13 +36,13 @@ MSG1_DELAY = 2  # send msg type 1 each 3 seconds
 MSG5_DELAY = 5  # send msg type 5 each 10 seconds
 
 MAX_DIST = 300  # in meters
-CENTER = (5.315458423270774,60.39705229794781)  # home
+CENTER = (29.0,62.0)  # home
 LON = 0
 LAT = 1
 PI = math.pi
 PIM2 = math.pi*2
 mode_descr = ["WAIT","SPEED","ROTATE"]
-
+NMEA_LINES = []
 
 def to_polar(x, y):
 
@@ -263,7 +264,7 @@ if USE_NETWORK:
         quit()
 
 if DYNA_SHOW:
-    os.system('cls')
+    os.system('clear')
 
 # read init values
 ships = []
@@ -333,11 +334,7 @@ while True:
                         for sentence in result['data']:
                             collect += sentence+helpers.NLBR
                 tmr5 -= MSG5_DELAY
-            
-            # own vessel
-            for s in ships:
-                if s.own:
-                    pass
+    
 
             
                 
