@@ -33,15 +33,11 @@ DYNA_SHOW = True
 USE_NETWORK = True
 
 UPD_INTERVAL = 0.1  # in seconds
-MSG1_DELAY = 2  # send msg type 1 each 3 seconds
-MSG5_DELAY = 5  # send msg type 5 each 10 seconds
+# MSG1_DELAY = 2  # send msg type 1 each 3 seconds
+# MSG5_DELAY = 5  # send msg type 5 each 10 seconds
 
 MAX_DIST = 300  # in meters
 CENTER = (29.0, 62.0)  # home
-LON = 0
-LAT = 1
-PI = math.pi
-PIM2 = math.pi*2
 mode_descr = ["WAIT", "SPEED", "ROTATE"]
 NMEA_LINES = []
 COLUMN_INTERVAL = 3
@@ -60,31 +56,11 @@ COLUMNS = [[10, "MMSI"],
            [10, "PARAM", True],
            [10, "LONLAT"],
            ]
-
-
-def to_polar(x, y):
-
-    if x == 0:
-        if y < 0:
-            a = 270.0
-        else:
-            a = 90.0
-    else:
-        a = math.atan(y / x) / math.pi * 180.0
-        if x < 0:
-            a += 180.0
-        elif y < 0:
-            a += 360.0
-    return [a, math.sqrt(x * x + y * y)]
-
-
-def sign(a):
-    if a > 0:
-        return 1
-    elif a < 0:
-        return -1
-    else:
-        return 0
+# VDM group ID | update interval | current value (added dynamically)
+timers = [
+    [1, 3],
+    [5, 5]
+]
 
 
 def at(x, y, text):
@@ -148,115 +124,138 @@ if DYNA_SHOW:
 ships = []
 f = open('init.json')
 ships_init = j.load(f)
-line_no = 0
+
 for x in ships_init['ships']:
-    # ships.append(ship(x, MAX_DIST if c == 0 else MAX_DIST*2))
-    ships.append(ship(x, MAX_DIST))
-    line_no += 1
+    ships.append(ship(x, CENTER, MAX_DIST))
 for s in ships:
     s.init_mode()
 f.close()
 group = 1
 
-tmr1, tmr5 = 0, 0
-while True:
-    try:
-        collect = []
-        if USE_NETWORK:
+# update timers (first output will be immediatelly)
+for tmr_no in range(len(timers)):
+    timers[tmr_no].append(timers[tmr_no][1])
 
-            if MODE == MODE_TCP:
-
-                print(f"[.] Wait for connection at tcp://{IP}:{PORT}")
-                conn, addr = sock.accept()
-
-                print(f"[I] Connected by {addr}")
-
-        while True:
-            if DYNA_SHOW:
-                line_no = 1
-
-                # header
-                for col_no in range(len(COLUMNS)):  # = [[1,"MMSI"],[10,"NAME"],[20,"MODE"]]
-                    draw_text(line_no, col_no)
-                line_no += 1
-
-                for s in ships:
-                    if s.active:
-                        draw_text(line_no, 0, s.mmsi)
-                        draw_text(line_no, 1, s.shipname)
-                        draw_text(line_no, 2, mode_descr[s.mode])
-                        draw_text(line_no, 3, "{:.1f}".format(s.param_time))
-                        draw_text(line_no, 4, "{:.3f}".format(s.param_value))
-
-                        # at(line_no, 12,                           f"MODE: {mode_descr[s.mode]} (TIME:{s.param_time:>5.1f})  {s.param_value:>6.3f}        ")
-                        # at(c, 35, f"TIME:   ")
-                        # at(c, 50, f"PARAM:   ")
-                        # at(c+1, 5, f"SPEED:  ")
-                        # at(c+1, 25, f"ANGLE:  ")
-                        # at(line_no+1, 12,                           f"XY: {s.x:>10.3f}, {s.y:>10.3f}     ")
-                        # at(line_no+2, 12,                           f"SA: {s.speed:>10.3f}, {s.angle:>10.3f}        ")
-                        # at(c+1, 55, f"Y: {s.y:>10.3f}  ")
-                        line_no += 1
-            for s in ships:
-                s.cycle(UPD_INTERVAL)
-
-            # foreign ships
-            tmr1 += UPD_INTERVAL
-            while tmr1 >= MSG1_DELAY:
-                for s in ships:
-                    # if not s.own:
-                    if s.active:
-                        result = s.get_vdm(group, 1)
-                        group = result['group']
-                        for sentence in result['data']:
-                            collect += sentence+helpers.NLBR
-                tmr1 -= MSG1_DELAY
-            tmr5 += UPD_INTERVAL
-            while tmr5 >= MSG5_DELAY:
-                for s in ships:
-                    # if not s.own:
-                    if s.active:
-                        result = s.get_vdm(group, 5)
-                        group = result['group']
-                        for sentence in result['data']:
-                            collect += sentence+helpers.NLBR
-                tmr5 -= MSG5_DELAY
-
-            if len(collect) > 0:
-
-                if DYNA_SHOW:
-                    line_no += 1
-                    NMEA_LINES.extend(collect)
-                    if len(NMEA_LINES) > NMEA_LINES_COUNT:
-                        NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
-                    for line in NMEA_LINES:
-                        at(0, line_no, line)
-                        line_no += 1
-
-                if USE_NETWORK:
-                    packet = ""
-                    for line in NMEA_LINES:
-                        packet += line + NLBR
-                    collect = bytes(collect, 'ascii')
-                    if MODE == MODE_UDP:
-                        sock.sendto(collect, (IP, PORT))
-                    elif MODE == MODE_TCP:
-                        conn.sendall(collect)
-
-                collect = ""
-
-            time.sleep(UPD_INTERVAL)
-    except ConnectionResetError:
-        print("[E] ConnectionResetError")
-    except ConnectionAbortedError:
-        print("[E] ConnectionAbortedError")
-    except KeyboardInterrupt:
-        print('\nInterrupted\n')
-        sock.close()
+try:
+    while True:
         try:
-            sys.exit(130)
-        except SystemExit:
-            os._exit(130)
-    except:
-        print('------ MAIN ERROR ------')
-        print(traceback.format_exc())
+            line_no = 0
+            collect = []
+            if USE_NETWORK:
+
+                if MODE == MODE_TCP:
+
+                    print(f"[.] Wait for connection at tcp://{IP}:{PORT}")
+                    conn, addr = sock.accept()
+
+                    print(f"[I] Connected by {addr}")
+
+            while True:
+                if DYNA_SHOW:
+                    line_no = 1
+
+                    # header
+                    for col_no in range(len(COLUMNS)):  # = [[1,"MMSI"],[10,"NAME"],[20,"MODE"]]
+                        draw_text(line_no, col_no)
+                    line_no += 1
+
+                    for s in ships:
+                        if s.active:
+                            draw_text(line_no, 0, s.mmsi)
+                            draw_text(line_no, 1, s.shipname)
+                            draw_text(line_no, 2, mode_descr[s.mode])
+                            draw_text(line_no, 3, "{:.1f}".format(s.param_time))
+                            draw_text(line_no, 4, "{:.3f}".format(s.param_value))
+
+                            # at(line_no, 12,                           f"MODE: {mode_descr[s.mode]} (TIME:{s.param_time:>5.1f})  {s.param_value:>6.3f}        ")
+                            # at(c, 35, f"TIME:   ")
+                            # at(c, 50, f"PARAM:   ")
+                            # at(c+1, 5, f"SPEED:  ")
+                            # at(c+1, 25, f"ANGLE:  ")
+                            # at(line_no+1, 12,                           f"XY: {s.x:>10.3f}, {s.y:>10.3f}     ")
+                            # at(line_no+2, 12,                           f"SA: {s.speed:>10.3f}, {s.angle:>10.3f}        ")
+                            # at(c+1, 55, f"Y: {s.y:>10.3f}  ")
+                            line_no += 1
+                for s in ships:
+                    s.cycle(UPD_INTERVAL)
+
+                # foreign ships
+                for tmr_no in range(len(timers)):
+
+                    while timers[tmr_no][2] >= timers[tmr_no][1]:
+                        for s in ships:
+                            if s.active:
+                                result = s.get_vdm(group, timers[tmr_no][0])
+                                group = result['group']
+                                collect.extend(result['data'])
+                        timers[tmr_no][2] -= timers[tmr_no][1]
+                    timers[tmr_no][2] += UPD_INTERVAL
+                """
+                tmr1 += UPD_INTERVAL
+                while tmr1 >= MSG1_DELAY:
+                    for s in ships:
+                        # if not s.own:
+                        if s.active:
+                            result = s.get_vdm(group, 1)
+                            group = result['group']
+                            collect.extend(result['data'])
+                            # for sentence in result['data']:                            collect += sentence+helpers.NLBR
+                    tmr1 -= MSG1_DELAY
+                tmr5 += UPD_INTERVAL
+                while tmr5 >= MSG5_DELAY:
+                    for s in ships:
+                        # if not s.own:
+                        if s.active:
+                            result = s.get_vdm(group, 5)
+                            group = result['group']
+                            collect.extend(result['data'])
+                            # for sentence in result['data']:                                collect += sentence+helpers.NLBR
+                    tmr5 -= MSG5_DELAY
+                """
+
+                if len(collect) > 0:
+
+                    if DYNA_SHOW:
+                        line_no += 1
+                        NMEA_LINES.extend(collect)
+                        if len(NMEA_LINES) > NMEA_LINES_COUNT:
+                            NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
+                        for line in NMEA_LINES:
+                            at(line_no, 0, line)
+                            line_no += 1
+
+                    if USE_NETWORK:
+                        packet = ""
+                        for line in NMEA_LINES:
+                            packet += line + NLBR
+                        packet = bytes(packet, 'ascii')
+                        if MODE == MODE_UDP:
+                            sock.sendto(packet, (IP, PORT))
+                        elif MODE == MODE_TCP:
+                            conn.sendall(packet)
+
+                    collect = []
+
+                time.sleep(UPD_INTERVAL)
+
+        except ConnectionResetError:
+            print("[E] ConnectionResetError")
+        except ConnectionAbortedError:
+            print("[E] ConnectionAbortedError")
+        except KeyboardInterrupt:
+            print('\nInterrupted\n')
+            sock.close()
+            try:
+                sys.exit(130)
+            except SystemExit:
+                os._exit(130)
+except:
+    line_no += 1
+    at(line_no, 0, '------ MAIN ERROR ------')
+    line_no += 1
+    err = traceback.format_exc().split('\n')
+    for el in err:
+        at(line_no, 0, el)
+        line_no += 1
+    # sys.exit(1)
+    # print(traceback.format_exc())

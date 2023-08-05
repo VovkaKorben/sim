@@ -22,8 +22,36 @@ mask_bit = tuple(mb)
 del b, c, sb, mb, tb
 
 NLBR = chr(13)+chr(10)
+LON = 0
+LAT = 1
+PI = math.pi
+PIM2 = math.pi*2
 
-    
+def to_polar(x, y):
+
+    if x == 0:
+        if y < 0:
+            a = 270.0
+        else:
+            a = 90.0
+    else:
+        a = math.atan(y / x) / math.pi * 180.0
+        if x < 0:
+            a += 180.0
+        elif y < 0:
+            a += 360.0
+    return [a, math.sqrt(x * x + y * y)]
+
+
+def sign(a):
+    if a > 0:
+        return 1
+    elif a < 0:
+        return -1
+    else:
+        return 0
+
+
 
 class fake_gps():
     def __init__(self):
@@ -66,8 +94,10 @@ class fake_gps():
 
 class ship():
 
-    def __init__(self, json, limit):
+    def __init__(self, json, center,limit):
         self.limit = limit
+        self.center = center
+
         self.own = json['own'] if 'own' in json else False
         self.mmsi = json['mmsi'] if 'mmsi' in json else 0
         self.shipname = json['shipname'] if 'shipname' in json else 'Unknown'
@@ -152,14 +182,14 @@ class ship():
     # detailed false for msg_id 1 / true for msg_id 5
     def get_vdm(self, group: str, msg_id: int):
         #    (self, talker: str, group_id: int, channel: str):
-        bc = helpers.bit_collector()
+        bc = bit_collector()
         now = datetime.now()
         if msg_id == 1 or msg_id == 2 or msg_id == 3:
             # calc lon lat
-            latlon = helpers.latlon2meter(CENTER)
+            latlon = latlon2meter(self.center)
             latlon[LON] += self.x
             latlon[LAT] += self.y
-            latlon = helpers.meters2latlon(latlon)
+            latlon = meters2latlon(latlon)
             bc.push(1, 6)  # Message Type
             bc.push(0, 2)  # Repeat Indicator
             bc.push(self.mmsi, 30)  #
@@ -352,7 +382,7 @@ class bit_collector():
                 dst_bit = 0x80
             self.length += 1
 
-    def push_str(self, data: str,length :int):
+    def push_str(self, data: str, length: int):
         data = data.upper()
         str_len = len(data)
         if str_len > length:
@@ -361,14 +391,12 @@ class bit_collector():
         while it < str_len:
             ch = data[it]
             index = self.NMEA_CHARS.find(ch)
-            if index!=-1:
-                self.push(index,6)
-            it+=1
+            if index != -1:
+                self.push(index, 6)
+            it += 1
         while it < length:
             self.push(32, 6)
             it += 1
-
-        
 
     def get_int(self, start: int, length: int, signed: bool = False):
         result = 0
@@ -388,7 +416,7 @@ class bit_collector():
         # if signed and (result & test_bit[length-1]) != 0:            result = -(result ^ (bits[length]-1))
         return result
 
-    def _add_cs(self,s: str):
+    def _add_cs(self, s: str):
         cs = 0
         for c in s:
             cs ^= ord(c)
@@ -411,7 +439,7 @@ class bit_collector():
             collected += rest_bits
             if collected >= MAX_PAYLOAD or start >= self.length:
                 pad = collected % 6
-                if pad>0:
+                if pad > 0:
                     pad = 6 - pad
                 accum += f',{pad}'
                 data.append(accum)
@@ -435,127 +463,6 @@ class bit_collector():
             'group': group
 
         }
-    """
-!AIVDM,2,1,9,B,53nFBv01SJ<thHp6220H4heHTf2222222222221?50:454o<`9QSlUDp,0*09
-54;?OTQ2koq8mTuL000mTuLp0000000000000000103111T9o35CRkSm
-!AIVDM,2,2,9,B,888888888888880,2*2E
-!AIVDM,2,1,6,B,56:fS:D0000000000008v0<QD4r0`T4v3400000t0`D147?ps1P00000,0*3D
-!AIVDM,2,2,6,B,000000000000008,2*29
-!AIVDM,2,1,8,A,53Q6SR02=21U`@H?800l4E9<f1HTLt000000001?BhL<@4q30Glm841E,0*7C
-!AIVDM,2,2,8,A,1DThUDQh0000000,2*4D
-!AIVDM,1,1,,B,133UQ650000>gOhMGl0Sh1nH0d4D,0*33
-
-['54;?OTQ2koq8mTuL000mTuLp0000000000000000103111T9o35CRkSm,0', 'kP0000000000008,0']
-
-!AIVDM,2,1,3,B,55P5TL01VIaAL@7WKO@mBplU@<PDhh000000001S;AJ::4A80?4i@E53,0*3E
-               54;?OTQ2koq8mTuL000mTuLp0000000000000000103111T9o35CRkSm,0
-!AIVDM,2,2,3,B,1@0000000000000,2*55
-               kP0000000000008
-
-    def create_vdm(message_id, data, header='AI', group_id: int = 1):
-        def get_checksum(s: str):
-            cs = 0
-            for c in s:
-                cs ^= ord(c)
-            return cs
-
-        def collect_bits(bc):
-
-            if not (message_id in VDM_DEFS):
-                raise Exception(f'[MSG_ID:{message_id}] Not found in VDM_DEFS')
-            if not (message_id in VDM_TYPES):
-                raise Exception(f'[MSG_ID:{message_id}] Not found in VDM_TYPES')
-
-            bc.add_bits(message_id, 6)
-
-            for field in VDM_DEFS[message_id]:
-                # print(f'Field: {field["name"]} ({field})')
-                if field['start'] != bc.length:
-                    raise Exception(f'[MSG_ID:{message_id}] No field with start at: {bc.length}')
-                if not (field['name'] in data):
-                    if 'default' in field:
-                        value = field['default']
-                    else:
-                        raise Exception(f'[MSG_ID:{message_id}] No default value for {field["name"]}')
-                else:
-                    value = data[field['name']]
-                # value_bitlen=helpers.bit_collector.get_len(value)
-                # if value_bitlen > field['len']:
-                #     raise Exception(f'[MSG_ID:{message_id}] Value for {field["name"]}={value} exceed maximum length. Maximum allowed {field["len"]}, got {value_bitlen}.')
-                value_type = type(value)
-                if field['type'] == NMEA_TYPE_INT:
-                    bc.add_bits(value, field['len'])
-                elif field['type'] == NMEA_TYPE_FLOAT:
-                    bc.add_bits(round(value*field['exp']), field['len'])
-                elif field['type'] == NMEA_TYPE_STRING:
-                    if value_type != str:
-                        raise Exception(f'[MSG_ID:{message_id}] {field["name"]}: string expected, got {value_type}')
-                    value = value.upper()
-                    l = len(value)
-                    if l < field['len']:
-                        value += '@' * (field['len']-l)
-                        l = field['len']
-                    else:
-                        l = min(len(value), field['len'])
-
-                    for c in range(l):
-                        i = helpers.bit_collector.NMEA_CHARS.find(value[c])
-
-                        if i == -1:
-                            raise Exception(f'[MSG_ID:{message_id}] {field["name"]}: unsupported character `{value[c]}`')
-                        bc.add_bits(i, 6)
-                else:
-                    raise Exception(f'[MSG_ID:{message_id}] Unknown field type ({field["type"]})')
-            if bc.length != VDM_TYPES[message_id]['len']:
-                raise Exception(f'[MSG_ID:{message_id}] Message len error, expected {VDM_TYPES[message_id]["len"]}, got {bc.length}')
-
-        def create_str(bc):
-            MAX_PAYLOAD = 336  # max bits in one message
-            ptr = 0
-            result = []
-            collected = 0
-            collect = r''
-            while ptr < bc.length:
-                b = bc.get_int(ptr, 6)
-                c = b + 48
-                if c > 87:
-                    c += 8
-                # print(f'{b}\t{c}\t{chr(c)}')
-                collect += chr(c)
-                ptr += 6
-                collected += 6
-                if collected >= MAX_PAYLOAD or ptr >= bc.length:
-                    result.append(collect)
-                    collected = 0
-                    collect = r''
-            return result
-
-        def create_messages(messages: dict, header: str, channel: str = 'A', group_id: int = None):
-            result = []
-            messages_count = len(messages)
-            for i in range(messages_count):
-                s = header+'VDM'
-                s = f'{s},{messages_count},{i+1},'
-                if messages_count > 1:
-                    s = f'{s}{messages_count}'
-                s = f'{s},{channel},{messages[i]},0'
-
-                cs = get_checksum(s)
-                s = f'!{s}*{format(cs, "02X")}'
-                print(s)
-                result.append(s)
-
-            return result
-    
-    bitcollector = helpers.bit_collector()
-    collect_bits(bitcollector)
-    messages = create_str(bitcollector)
-    if len(messages) > 1 and group_id is None:
-        raise Exception(f'[MSG_ID:{message_id}] For multiple message sequences you must provide GROUP_ID')
-    nmea = create_messages(messages, header)
-    # print(nmea)
-    return nmea
-"""
 
 
 def create_vdm(message_id, data, header='AI', group_id: int = 1):
@@ -585,7 +492,7 @@ def create_vdm(message_id, data, header='AI', group_id: int = 1):
                     raise Exception(f'[MSG_ID:{message_id}] No default value for {field["name"]}')
             else:
                 value = data[field['name']]
-            # value_bitlen=helpers.bit_collector.get_len(value)
+            # value_bitlen=bit_collector.get_len(value)
             # if value_bitlen > field['len']:
             #     raise Exception(f'[MSG_ID:{message_id}] Value for {field["name"]}={value} exceed maximum length. Maximum allowed {field["len"]}, got {value_bitlen}.')
             value_type = type(value)
@@ -605,7 +512,7 @@ def create_vdm(message_id, data, header='AI', group_id: int = 1):
                     l = min(len(value), field['len'])
 
                 for c in range(l):
-                    i = helpers.bit_collector.NMEA_CHARS.find(value[c])
+                    i = bit_collector.NMEA_CHARS.find(value[c])
 
                     if i == -1:
                         raise Exception(f'[MSG_ID:{message_id}] {field["name"]}: unsupported character `{value[c]}`')
@@ -653,7 +560,7 @@ def create_vdm(message_id, data, header='AI', group_id: int = 1):
 
         return result
 
-    bitcollector = helpers.bit_collector()
+    bitcollector = bit_collector()
     collect_bits(bitcollector)
     messages = create_str(bitcollector)
     if len(messages) > 1 and group_id is None:
@@ -687,7 +594,6 @@ def create_vdm(message_id, data, header='AI', group_id: int = 1):
             pad -= 1
         # self.length -= int(pad)
         # print(f'char={ch}\tcode={code}\tbufflen={self.length}')
-
 
 
 def is_zero(v):
