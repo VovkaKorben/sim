@@ -30,7 +30,7 @@ PORT = 17777
 NMEA_LINES_COUNT = 10
 
 DYNA_SHOW = True
-USE_NETWORK = True
+USE_NETWORK = False
 
 UPD_INTERVAL = 0.1  # in seconds
 # MSG1_DELAY = 2  # send msg type 1 each 3 seconds
@@ -54,6 +54,9 @@ COLUMNS = [[10, "MMSI"],
            [10, "MODE"],
            [10, "TIME", True],
            [10, "PARAM", True],
+           [10, "ANGLE", True],
+           [10, "SPEED", True],
+           [10, "XY"],
            [10, "LONLAT"],
            ]
 # VDM group ID | update interval | current value (added dynamically)
@@ -100,11 +103,6 @@ def draw_text(line, col, text=None):
     at(line, start, text)
 
 
-"""
-gps = fake_gps()
-gps.cycle(100)
-gps.get_sat(CENTER)
-"""
 if USE_NETWORK:
     if MODE == MODE_TCP:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -116,9 +114,6 @@ if USE_NETWORK:
     else:
         print("check MODE variable, it can be MODE_TCP or MODE_UDP.")
         quit()
-
-if DYNA_SHOW:
-    os.system('clear')
 
 # read init values
 ships = []
@@ -141,6 +136,8 @@ try:
         try:
             line_no = 0
             collect = []
+            os.system('clear')
+
             if USE_NETWORK:
 
                 if MODE == MODE_TCP:
@@ -151,35 +148,8 @@ try:
                     print(f"[I] Connected by {addr}")
 
             while True:
-                if DYNA_SHOW:
-                    line_no = 1
 
-                    # header
-                    for col_no in range(len(COLUMNS)):  # = [[1,"MMSI"],[10,"NAME"],[20,"MODE"]]
-                        draw_text(line_no, col_no)
-                    line_no += 1
-
-                    for s in ships:
-                        if s.active:
-                            draw_text(line_no, 0, s.mmsi)
-                            draw_text(line_no, 1, s.shipname)
-                            draw_text(line_no, 2, mode_descr[s.mode])
-                            draw_text(line_no, 3, "{:.1f}".format(s.param_time))
-                            draw_text(line_no, 4, "{:.3f}".format(s.param_value))
-
-                            # at(line_no, 12,                           f"MODE: {mode_descr[s.mode]} (TIME:{s.param_time:>5.1f})  {s.param_value:>6.3f}        ")
-                            # at(c, 35, f"TIME:   ")
-                            # at(c, 50, f"PARAM:   ")
-                            # at(c+1, 5, f"SPEED:  ")
-                            # at(c+1, 25, f"ANGLE:  ")
-                            # at(line_no+1, 12,                           f"XY: {s.x:>10.3f}, {s.y:>10.3f}     ")
-                            # at(line_no+2, 12,                           f"SA: {s.speed:>10.3f}, {s.angle:>10.3f}        ")
-                            # at(c+1, 55, f"Y: {s.y:>10.3f}  ")
-                            line_no += 1
-                for s in ships:
-                    s.cycle(UPD_INTERVAL)
-
-                # foreign ships
+                # process message timers
                 for tmr_no in range(len(timers)):
 
                     while timers[tmr_no][2] >= timers[tmr_no][1]:
@@ -190,39 +160,12 @@ try:
                                 collect.extend(result['data'])
                         timers[tmr_no][2] -= timers[tmr_no][1]
                     timers[tmr_no][2] += UPD_INTERVAL
-                """
-                tmr1 += UPD_INTERVAL
-                while tmr1 >= MSG1_DELAY:
-                    for s in ships:
-                        # if not s.own:
-                        if s.active:
-                            result = s.get_vdm(group, 1)
-                            group = result['group']
-                            collect.extend(result['data'])
-                            # for sentence in result['data']:                            collect += sentence+helpers.NLBR
-                    tmr1 -= MSG1_DELAY
-                tmr5 += UPD_INTERVAL
-                while tmr5 >= MSG5_DELAY:
-                    for s in ships:
-                        # if not s.own:
-                        if s.active:
-                            result = s.get_vdm(group, 5)
-                            group = result['group']
-                            collect.extend(result['data'])
-                            # for sentence in result['data']:                                collect += sentence+helpers.NLBR
-                    tmr5 -= MSG5_DELAY
-                """
 
                 if len(collect) > 0:
 
-                    if DYNA_SHOW:
-                        line_no += 1
-                        NMEA_LINES.extend(collect)
-                        if len(NMEA_LINES) > NMEA_LINES_COUNT:
-                            NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
-                        for line in NMEA_LINES:
-                            at(line_no, 0, line)
-                            line_no += 1
+                    NMEA_LINES.extend(collect)
+                    if len(NMEA_LINES) > NMEA_LINES_COUNT:
+                        NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
 
                     if USE_NETWORK:
                         packet = ""
@@ -236,8 +179,47 @@ try:
 
                     collect = []
 
-                time.sleep(UPD_INTERVAL)
+                if DYNA_SHOW:
 
+                    line_no = 1
+
+                    # header
+                    for col_no in range(len(COLUMNS)):
+                        draw_text(line_no, col_no)
+                    line_no += 1
+
+                    for s in ships:
+                        if s.active:
+                            draw_text(line_no, 0, s.mmsi)
+                            draw_text(line_no, 1, s.shipname)
+                            draw_text(line_no, 2, mode_descr[s.mode])
+                            draw_text(line_no, 3, "{:.1f}".format(s.param_time))
+                            draw_text(line_no, 4, "{:.3f}".format(s.param_value))
+                            draw_text(line_no, 5, "{:.3f}".format(s.angle))
+                            draw_text(line_no, 6, "{:.3f}".format(s.speed))
+                            draw_text(line_no, 7, "{:.0f},{:.0f}".format(s.x,s.y))
+
+                            # at(line_no, 12,                           f"MODE: {mode_descr[s.mode]} (TIME:{s.param_time:>5.1f})  {s.param_value:>6.3f}        ")
+                            # at(c, 35, f"TIME:   ")
+                            # at(c, 50, f"PARAM:   ")
+                            # at(c+1, 5, f"SPEED:  ")
+                            # at(c+1, 25, f"ANGLE:  ")
+                            # at(line_no+1, 12,                           f"XY: {s.x:>10.3f}, {s.y:>10.3f}     ")
+                            # at(line_no+2, 12,                           f"SA: {s.speed:>10.3f}, {s.angle:>10.3f}        ")
+                            # at(c+1, 55, f"Y: {s.y:>10.3f}  ")
+                            line_no += 1
+
+                    # draw last N NMEA messages
+                    line_no += 1
+                    for line in NMEA_LINES:
+                        at(line_no, 0, line)
+                        line_no += 1
+
+                for s in ships:
+                    s.cycle(UPD_INTERVAL)
+
+                time.sleep(UPD_INTERVAL)
+                os.system('clear')
         except ConnectionResetError:
             print("[E] ConnectionResetError")
         except ConnectionAbortedError:
