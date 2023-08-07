@@ -19,64 +19,24 @@ import math
 import socket
 import traceback
 
-MODE_UDP = 1
-MODE_TCP = 2
-
-
-# MODE = MODE_TCP
-MODE = MODE_UDP
-IP = "192.168.1.10"
-PORT = 17777
-NMEA_LINES_COUNT = 10
-
-DYNA_SHOW = True
-USE_NETWORK = False
-
-UPD_INTERVAL = 0.1  # in seconds
-# MSG1_DELAY = 2  # send msg type 1 each 3 seconds
-# MSG5_DELAY = 5  # send msg type 5 each 10 seconds
-
-MAX_DIST = 300  # in meters
-CENTER = (29.0, 62.0)  # home
-
-mode_descr = ["⏳", "🐢🚀", "↻ ROT ↺"]
-NMEA_LINES = []
-COLUMN_INTERVAL = 3
-# len | default name | align( Left = false, default; Right = true)
-COLUMNS = [[10, "MMSI"],
-           [10, "NAME"],
-           [10, "MODE"],
-           [8, "TIME", True],
-        #    [10, "PARAM", True],
-           [10, "ANGLE", True],
-           [10, "km/h", True],
-           [10, "ΔX, ΔY", True],
-           [25, "LON,LAT", True],
-           ]
-# VDM group ID | update interval | current value (added dynamically)
-timers = [
-    [1, 3],
-    [5, 5]
-]
-
 
 def at(x, y, text):
     sys.stdout.write("\x1b7\x1b[%d;%df%s\x1b8" % (x, y, text))
     sys.stdout.flush()
 
 
-def get_col_start(col: int):
-    if col < 0 or col >= len(COLUMNS):
-        return -1
-    r = 0
-    while col > 0:
-        r += COLUMNS[col-1][0]+COLUMN_INTERVAL
-        col -= 1
-        # if col > 0:            r += COLUMN_INTERVAL
-    return r
-
-
 def draw_text(line, col, text=None):
+
+    def get_col_start(col: int):
+        if col < 0 or col >= len(COLUMNS):
+            return -1
+        r = 0
+        while col > 0:
+            r += COLUMNS[col-1][0]+COLUMN_INTERVAL
+            col -= 1
+            # if col > 0:            r += COLUMN_INTERVAL
+        return r
+
     if col < 0 or col >= len(COLUMNS):
         return
     if text == None:
@@ -97,29 +57,76 @@ def draw_text(line, col, text=None):
     at(line, start, text)
 
 
-if USE_NETWORK:
-    if MODE == MODE_TCP:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((IP, PORT))
-        sock.listen()
-    elif MODE == MODE_UDP:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    else:
-        print("check MODE variable, it can be MODE_TCP or MODE_UDP.")
-        quit()
+# consts
+NETWORK_DISABLED = 0
+NETWORK_TCP = 1
+NETWORK_UDP = 2
+
+mode_descr = ["⏳", "🐢🚀", "↻ ROT ↺"]
+COLUMN_INTERVAL = 3
+COLUMNS = [  # len | default name | align( Left = false, default; Right = true)
+    [10, "MMSI"],
+    [10, "NAME"],
+    [10, "MODE"],
+    [8, "TIME", True],
+    #    [10, "PARAM", True],
+    [10, "ANGLE", True],
+    [10, "km/h", True],
+    [10, "ΔX, ΔY", True],
+    [25, "LON,LAT", True],
+]
+
+# work arrays
+NMEA_LINES = []
+timers = [  # VDM group ID | update interval | current value (added dynamically)
+    [1, 3],
+    [5, 5]
+]
+
 
 # read init values
-ships = []
-f = open('init.json')
-ships_init = j.load(f)
+json_file = open('init.json')
+ini = j.load(json_file)
+json_file.close()
 
-for x in ships_init['ships']:
+
+NETWORK_MODE = NETWORK_DISABLED
+if ini['network']['enabled']:
+    if ini['network']['mode'].upper() == "TCP":
+        NETWORK_MODE = NETWORK_TCP
+    elif ini['network']['mode'].upper() == "UDP":
+        NETWORK_MODE = NETWORK_UDP
+
+if NETWORK_MODE == NETWORK_TCP:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((ini['network']['ip'], ini['network']['port']))
+    sock.listen()
+elif NETWORK_MODE == NETWORK_UDP:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+else:
+    print("network disabled, check init.json for `network` section.")
+
+DISPLAY_ENABLED = ini['display']['enabled']
+if DISPLAY_ENABLED:
+    NMEA_LINES_COUNT = ini['display']['lines']
+    UPD_INTERVAL = ini['display']['interval']
+# MSG1_DELAY = 2  # send msg type 1 each 3 seconds
+# MSG5_DELAY = 5  # send msg type 5 each 10 seconds
+
+# load area
+MAX_DIST = ini['area']['limit']
+CENTER = (ini['area']['lon'], ini['area']['lat'])
+
+# load ships
+ships = []
+for x in ini['ships']:
     if x['active']:
         ships.append(ship(x, CENTER, MAX_DIST))
 for s in ships:
     s.init_mode()
-f.close()
+
+# nmea pass-trough message group ID
 group = 1
 
 # update timers (first output will be immediatelly)
@@ -134,14 +141,10 @@ try:
             collect = []
             os.system('clear')
 
-            if USE_NETWORK:
-
-                if MODE == MODE_TCP:
-
-                    print(f"[.] Wait for connection at tcp://{IP}:{PORT}")
-                    conn, addr = sock.accept()
-
-                    print(f"[I] Connected by {addr}")
+            if NETWORK_MODE == NETWORK_TCP:
+                print(f"[.] Wait for connection at tcp://{ini['network']['ip']}:{ini['network']['port']}")
+                conn, addr = sock.accept()
+                print(f"[I] Connected by {addr}")
 
             while True:
 
@@ -162,19 +165,19 @@ try:
                     if len(NMEA_LINES) > NMEA_LINES_COUNT:
                         NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
 
-                    if USE_NETWORK:
+                    if NETWORK_MODE != NETWORK_DISABLED:
                         packet = ""
                         for line in NMEA_LINES:
                             packet += line + NLBR
                         packet = bytes(packet, 'ascii')
-                        if MODE == MODE_UDP:
-                            sock.sendto(packet, (IP, PORT))
-                        elif MODE == MODE_TCP:
+                        if NETWORK_MODE == NETWORK_UDP:
+                            sock.sendto(packet, (ini['network']['ip'], ini['network']['port']))
+                        else:  # NETWORK_MODE == NETWORK_TCP:
                             conn.sendall(packet)
 
                     collect = []
 
-                if DYNA_SHOW:
+                if DISPLAY_ENABLED:
 
                     line_no = 1
 

@@ -32,11 +32,11 @@ MODE_ROTATE = 2
 
 
 def to_deg(rad: float):
-    return rad*180.0 / π
+    return math.fmod(rad*180.0 / π, 360)
 
 
 def to_rad(deg: float):
-    return deg * π / 180.0
+    return math.fmod(deg * π / 180.0, 2*π)
 
 
 def to_polar(x, y=None):
@@ -92,7 +92,7 @@ class ship():
         self.angle = random.uniform(0.0, π*2)
 
         self.maxspeed *= 1000/3600  # recalculate from km/h to m/s
-        self.maxspeed *= 25
+        # self.maxspeed *= 25 dbg
         self.speed = random.uniform(0.0, self.maxspeed)
 
         # some empiric values for evaluate accelerate
@@ -122,8 +122,6 @@ class ship():
                 done = True
 
             # calculate new position according speed and angle!!
-            # polar to decart
-            # ta = self.angle * math.pi / 180.0
             td = used_seconds * self.speed
             self.delta_met[LON] += td * math.cos(self.angle)
             self.delta_met[LAT] += td * math.sin(self.angle)
@@ -235,7 +233,6 @@ def meters2latlon(pos):  # epsg3857 to Epsg4326
     y = (y * 180) / 20037508.34
     y = (math.atan(math.pow(math.e, y * (π / 180))) * 360) / π - 90
     return [x, y]
-
 
 
 def is_int(s):

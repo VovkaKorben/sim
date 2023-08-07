@@ -1,6 +1,20 @@
 {
-    "lat": 60.167453290984675,
-    "lon": 24.95324654615486,
+    "area": {
+        "lon": 29.0000000,
+        "lat": 62.0000000,
+        "limit":300
+    },
+    "network": {
+        "enabled": 0,
+        "mode": "tcp",
+        "ip": "192.168.1.10",
+        "port": 1
+    },
+    "display": {
+        "enabled": 1,
+        "interval": 0.1,
+        "lines": 12
+    },
     "ships": [
         {
             "shipname": "MyOwn",
