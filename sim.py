@@ -11,7 +11,7 @@ import sys
 import os
 import json as j
 # import nmea
-from helpers import ship, NLBR, bit_collector
+from helpers import ship, NLBR, bit_collector, LON, LAT, to_deg
 import helpers
 
 import time
@@ -38,26 +38,20 @@ UPD_INTERVAL = 0.1  # in seconds
 
 MAX_DIST = 300  # in meters
 CENTER = (29.0, 62.0)  # home
-mode_descr = ["WAIT", "SPEED", "ROTATE"]
+
+mode_descr = ["⏳", "🐢🚀", "↻ ROT ↺"]
 NMEA_LINES = []
 COLUMN_INTERVAL = 3
 # len | default name | align( Left = false, default; Right = true)
-COLUMNS = [[9, "MMSI"],
-           [12, "NAME"],
-           [9, "MODE"],
-           [10, "TIME", True],
-           [10, "PARAM", True],
-           [22, "LONLAT"],
-           ]
 COLUMNS = [[10, "MMSI"],
            [10, "NAME"],
            [10, "MODE"],
-           [10, "TIME", True],
-           [10, "PARAM", True],
+           [8, "TIME", True],
+        #    [10, "PARAM", True],
            [10, "ANGLE", True],
-           [10, "SPEED", True],
-           [10, "XY"],
-           [10, "LONLAT"],
+           [10, "km/h", True],
+           [10, "ΔX, ΔY", True],
+           [25, "LON,LAT", True],
            ]
 # VDM group ID | update interval | current value (added dynamically)
 timers = [
@@ -121,7 +115,8 @@ f = open('init.json')
 ships_init = j.load(f)
 
 for x in ships_init['ships']:
-    ships.append(ship(x, CENTER, MAX_DIST))
+    if x['active']:
+        ships.append(ship(x, CENTER, MAX_DIST))
 for s in ships:
     s.init_mode()
 f.close()
@@ -129,7 +124,8 @@ group = 1
 
 # update timers (first output will be immediatelly)
 for tmr_no in range(len(timers)):
-    timers[tmr_no].append(timers[tmr_no][1])
+    # timers[tmr_no].append(timers[tmr_no][1])
+    timers[tmr_no].append(0.0)
 
 try:
     while True:
@@ -154,10 +150,9 @@ try:
 
                     while timers[tmr_no][2] >= timers[tmr_no][1]:
                         for s in ships:
-                            if s.active:
-                                result = s.get_vdm(group, timers[tmr_no][0])
-                                group = result['group']
-                                collect.extend(result['data'])
+                            result = s.get_vdm(group, timers[tmr_no][0])
+                            group = result['group']
+                            collect.extend(result['data'])
                         timers[tmr_no][2] -= timers[tmr_no][1]
                     timers[tmr_no][2] += UPD_INTERVAL
 
@@ -188,26 +183,18 @@ try:
                         draw_text(line_no, col_no)
                     line_no += 1
 
+                    # ships data
                     for s in ships:
-                        if s.active:
-                            draw_text(line_no, 0, s.mmsi)
-                            draw_text(line_no, 1, s.shipname)
-                            draw_text(line_no, 2, mode_descr[s.mode])
-                            draw_text(line_no, 3, "{:.1f}".format(s.param_time))
-                            draw_text(line_no, 4, "{:.3f}".format(s.param_value))
-                            draw_text(line_no, 5, "{:.3f}".format(s.angle))
-                            draw_text(line_no, 6, "{:.3f}".format(s.speed))
-                            draw_text(line_no, 7, "{:.0f},{:.0f}".format(s.x,s.y))
-
-                            # at(line_no, 12,                           f"MODE: {mode_descr[s.mode]} (TIME:{s.param_time:>5.1f})  {s.param_value:>6.3f}        ")
-                            # at(c, 35, f"TIME:   ")
-                            # at(c, 50, f"PARAM:   ")
-                            # at(c+1, 5, f"SPEED:  ")
-                            # at(c+1, 25, f"ANGLE:  ")
-                            # at(line_no+1, 12,                           f"XY: {s.x:>10.3f}, {s.y:>10.3f}     ")
-                            # at(line_no+2, 12,                           f"SA: {s.speed:>10.3f}, {s.angle:>10.3f}        ")
-                            # at(c+1, 55, f"Y: {s.y:>10.3f}  ")
-                            line_no += 1
+                        draw_text(line_no, 0, s.mmsi)
+                        draw_text(line_no, 1, s.shipname)
+                        draw_text(line_no, 2, mode_descr[s.mode])
+                        draw_text(line_no, 3, "{:.1f}".format(s.param_time))
+                        # draw_text(line_no, 4, "{:.3f}".format(s.param_value))
+                        draw_text(line_no, 4, "{:.1f}".format(to_deg(s.angle)))
+                        draw_text(line_no, 5, "{:.3f}".format(s.speed*3.6))
+                        draw_text(line_no, 6, "{:+.0f}, {:+.0f}".format(s.delta_met[LON], s.delta_met[LAT]))
+                        draw_text(line_no, 7, "{:.7f}, {:.7f}".format(s.deg[LON], s.deg[LAT]))
+                        line_no += 1
 
                     # draw last N NMEA messages
                     line_no += 1
@@ -239,5 +226,3 @@ except:
     for el in err:
         at(line_no, 0, el)
         line_no += 1
-    # sys.exit(1)
-    # print(traceback.format_exc())

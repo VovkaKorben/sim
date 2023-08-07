@@ -10,17 +10,17 @@
             "width": 3,
             "height": 12,
             "draught": 1.2,
-            "own":true,
-            "active":0
+            "own": true,
+            "active": 0
         },
         {
             "shipname": "Tardis",
             "type": 80,
-            "maxspeed": 10,
+            "maxspeed": 30,
             "mmsi": 225221211,
-            "width": 20,
-            "height": 100,
-            "draught": 10,
+            "width": 45,
+            "height": 200,
+            "draught": 15,
             "active": 1
         },
         {

@@ -6,8 +6,6 @@ import math
 from datetime import datetime
 import random
 
-re_float = re.compile(r'[-+]?([0-9]*[.])?[0-9]+([eE][-+]?\d+)?')
-re_floatstr2int = re.compile(r'([-+]?[0-9]+)\.?[0-9]*')
 tb, sb, mb = [], [0], [0]
 c, b = 32, 1
 while c > 0:
@@ -24,22 +22,42 @@ del b, c, sb, mb, tb
 NLBR = chr(13)+chr(10)
 LON = 0
 LAT = 1
-PI = math.pi
-PIM2 = math.pi*2
+# PI = math.pi
+π = math.pi
+# PIM2 = math.pi*2
 
-def to_polar(x, y):
+MODE_WAIT = 0
+MODE_SPEED = 1
+MODE_ROTATE = 2
+
+
+def to_deg(rad: float):
+    return rad*180.0 / π
+
+
+def to_rad(deg: float):
+    return deg * π / 180.0
+
+
+def to_polar(x, y=None):
+    if y == None:
+        if not isinstance(x, list):
+            raise ValueError("If only one argument passed to <to_polar> it must be list")
+        else:
+            y = x[1]
+            x = x[0]
 
     if x == 0:
         if y < 0:
-            a = 270.0
+            a = π/2*3
         else:
-            a = 90.0
+            a = π/2
     else:
-        a = math.atan(y / x) / math.pi * 180.0
+        a = math.atan(y / x)
         if x < 0:
-            a += 180.0
+            a += π
         elif y < 0:
-            a += 360.0
+            a += π*2
     return [a, math.sqrt(x * x + y * y)]
 
 
@@ -52,75 +70,36 @@ def sign(a):
         return 0
 
 
-
-class fake_gps():
-    def __init__(self):
-        self.sat = []
-        for satno in range(24):
-            orb_index = satno // 4
-            sat_on_orbit = satno % 4
-            lon = orb_index * PI / 3
-            lat = (orb_index % 3) * 2
-            lat += orb_index // 3
-            lat += sat_on_orbit*6
-            lat = lat * PI / 12
-            self.sat.append([lon, lat])
-            print(f"{satno:>3}\t{lon:.3f}\t{lat:.3f}")
-        pass
-
-    def cycle(self, seconds: int):
-        SPEED = PI / (6*60*60)  # radians per second
-        for satno in range(24):
-            self.sat[satno][LAT] += SPEED * seconds
-            if self.sat[satno][LAT] >= PIM2:
-                self.sat[satno][LAT] -= PIM2
-
-    def get_sat(self, pos):
-
-        result = []
-        for satno in range(0, 24, 3):
-            result.append({
-                'prn': satno,
-                'snr': 50,
-                'elev': satno*22,
-                'az': satno*11
-            })
-        return result
-
-    def get_gsv(self):
-        sat = self.get_sat(None)
-        result = []
-
-
 class ship():
 
-    def __init__(self, json, center,limit):
-        self.limit = limit
-        self.center = center
-
+    def __init__(self, json, center_deg, limit):
+        # read JSON
+        self.active = json['active'] if 'active' in json else 0
+        self.w = json['width'] if 'width' in json else 10
+        self.h = json['height'] if 'height' in json else 3
+        self.draught = json['draught'] if 'draught' in json else 2
         self.own = json['own'] if 'own' in json else False
         self.mmsi = json['mmsi'] if 'mmsi' in json else 0
         self.shipname = json['shipname'] if 'shipname' in json else 'Unknown'
         self.maxspeed = json['maxspeed'] if 'maxspeed' in json else 'maxspeed'
-        self.maxspeed *= 1000/60/60
         self.type = json['type'] if 'type' in json else 0
-        self.x, self.y = random.randint(-self.limit,
-                                        self.limit), random.randint(-self.limit, self.limit)
-        self.angle, self.speed = random.uniform(
-            0.0, 359.0), random.uniform(0.0, self.maxspeed)
-        self.w = json['width'] if 'width' in json else 10
-        self.h = json['height'] if 'height' in json else 3
-        self.draught = json['draught'] if 'draught' in json else 2
-        # some empiric values for evaluate accelerate
-        # whan more weight ship - than slower it accelerate
-        # mass = self.w * self.h * self.draught * 4
-        mspeed = self.maxspeed / 60/60  # in m/s
-        self._velocity = self.maxspeed / 100  # 1 / mass * mspeed * 1000
-        self.mode, self.param_time, self.param_value = 0, 0, 0
-        self.active = json['active'] if 'active' in json else 0
-        # print(f"{self.shipname}\t{mass}\t{mspeed}\t{self._velocity}")
 
-        # print(self.active)
+        # setup init pos, speed, angle
+        self.limit = limit
+        self.center_met = latlon2meter(center_deg)
+        self.delta_met = [random.randint(-self.limit,    self.limit), random.randint(-self.limit, self.limit)]
+        self.eval_deg()
+        self.angle = random.uniform(0.0, π*2)
+
+        self.maxspeed *= 1000/3600  # recalculate from km/h to m/s
+        self.maxspeed *= 25
+        self.speed = random.uniform(0.0, self.maxspeed)
+
+        # some empiric values for evaluate accelerate
+        self.velocity = 0.05  # m/s²
+        self.rotate_speed = to_rad(20)/60  # rotate rate = degree / minute
+
+        self.mode, self.param_time, self.param_value = 0, 0, 0
 
     def cycle(self, seconds: int):
         done = False
@@ -136,10 +115,6 @@ class ship():
                 self.speed += used_seconds * self.param_value
             elif self.mode == 2:  # rotate
                 self.angle += used_seconds * self.param_value
-                if self.angle < 0:
-                    self.angle += 360.0
-                elif self.angle >= 360.0:
-                    self.angle -= 360.0
 
             if self.param_time == 0:
                 self.init_mode()
@@ -148,18 +123,19 @@ class ship():
 
             # calculate new position according speed and angle!!
             # polar to decart
-            ta = self.angle * math.pi / 180.0
+            # ta = self.angle * math.pi / 180.0
             td = used_seconds * self.speed
-            self.x += td * math.cos(ta)
-            self.y += td * math.sin(ta)
+            self.delta_met[LON] += td * math.cos(self.angle)
+            self.delta_met[LAT] += td * math.sin(self.angle)
+            self.eval_deg()
+
             # if out of range = make vessel flow to center some time
-            if abs(self.x) > self.limit or abs(self.y) > self.limit:
+            if abs(self.delta_met[LON]) > self.limit or abs(self.delta_met[LAT]) > self.limit:
                 self.mode = 0
                 self.speed = self.maxspeed
-                self.angle = to_polar(self.x, self.y)[0]
-                self.angle = self.angle-180.0
-                if self.angle < 0:
-                    self.angle += 360.0
+                self.angle = to_polar(self.delta_met)[0]
+                self.angle += π  # invert angle
+
                 self.param_time = random.randint(20, 30)
 
     def init_mode(self):
@@ -168,16 +144,19 @@ class ship():
         if self.mode == 0:  # wait
             self.param_time = random.randint(10, 20)
         elif self.mode == 1:  # speed change
-            delta = random.uniform(0, self.maxspeed) - self.speed
-            self.param_time = math.ceil(abs(delta/self._velocity))
-            self.param_value = delta / self.param_time
-            pass
+            speed_delta = random.uniform(0, self.maxspeed) - self.speed
+            self.param_time = math.ceil(abs(speed_delta)/self.velocity)
+            self.param_value = self.velocity / self.param_time
         elif self.mode == 2:  # rotate
-            delta = random.uniform(-160.0, +160.0)
-            # rotate speed three times slower than acceleration
-            self.param_time = math.ceil(abs(delta/self._velocity/15))
-            self.param_value = delta / self.param_time
-            pass
+            rotate_delta = random.uniform(-π, +π)
+            self.param_time = math.ceil(abs(rotate_delta) / self.rotate_speed)
+            self.param_value = rotate_delta / self.param_time
+
+    def angle_deg(self):
+        return to_deg(self.angle)
+
+    def eval_deg(self):
+        self.deg = meters2latlon([self.center_met[LON]+self.delta_met[LON], self.center_met[LAT]+self.delta_met[LAT]])
 
     # detailed false for msg_id 1 / true for msg_id 5
     def get_vdm(self, group: str, msg_id: int):
@@ -185,11 +164,7 @@ class ship():
         bc = bit_collector()
         now = datetime.now()
         if msg_id == 1 or msg_id == 2 or msg_id == 3:
-            # calc lon lat
-            latlon = latlon2meter(self.center)
-            latlon[LON] += self.x
-            latlon[LAT] += self.y
-            latlon = meters2latlon(latlon)
+
             bc.push(1, 6)  # Message Type
             bc.push(0, 2)  # Repeat Indicator
             bc.push(self.mmsi, 30)  #
@@ -198,9 +173,9 @@ class ship():
             # speed, 1 metres per second (m/s) is equal to 1.9438452 knots
             bc.push(int(self.speed * 19.438452), 10)
             bc.push(0, 1)  # accuracy
-            bc.push(int(latlon[LON]*600000), 28)  # lon
-            bc.push(int(latlon[LAT]*600000), 27)  # lat
-            bc.push(int(self.angle*10), 12)  # cog
+            bc.push(int(self.deg[LON]*600000), 28)  # lon
+            bc.push(int(self.deg[LAT]*600000), 27)  # lat
+            bc.push(int(self.angle_deg()*10), 12)  # cog
             bc.push(int(self.angle), 9)  # hog
             bc.push(now.second, 6)  # seconds
             bc.push(0, 2)  # maneuver = Not available (default)
@@ -213,7 +188,7 @@ class ship():
             bc.push(self.mmsi, 30)  # mmsi
             bc.push(0, 2)  # AIS Version
             bc.push(self.mmsi, 30)  # IMO Number = mmsi
-            bc.push_str(self.shipname[:4], 7)
+            bc.push_str(self.shipname[:7], 7)
             bc.push_str(self.shipname, 20)
             bc.push(self.type, 8)  #
             bc.push(int(self.h*0.7), 9)  #
@@ -233,10 +208,6 @@ class ship():
         return bc.create_vdm('AI', group, 'A')
 
 
-def is_intersect(rect1, rect2):
-    return ((rect1[0] < rect2[2]) and (rect1[2] > rect2[0]) and (rect1[3] > rect2[1]) and (rect1[1] < rect2[3]))
-
-
 def sign(a):
     if a > 0:
         return 1
@@ -252,7 +223,7 @@ def latlon2meter(coords):  # in format (lon,lat)
         # The value 85.051129° is the latitude at which the full projected map becomes a square
         y = sign(coords[1]) * abs(coords[1])*111.132952777
     else:
-        y = math.log(math.tan(((90 + coords[1]) * math.pi) / 360)) / (math.pi / 180)
+        y = math.log(math.tan(((90 + coords[1]) * π) / 360)) / (π / 180)
         y = (y * 20037508.34) / 180
     return [x, y]
 
@@ -262,18 +233,9 @@ def meters2latlon(pos):  # epsg3857 to Epsg4326
     y = pos[1]
     x = (x * 180) / 20037508.34
     y = (y * 180) / 20037508.34
-    y = (math.atan(math.pow(math.e, y * (math.pi / 180))) * 360) / math.pi - 90
+    y = (math.atan(math.pow(math.e, y * (π / 180))) * 360) / π - 90
     return [x, y]
 
-
-# backward (in JS)
-# function epsg3857toEpsg4326(pos) {
-#     let x = pos[0]
-#     let y = pos[1]
-#     x = (x * 180) / 20037508.34
-#     y = (y * 180) / 20037508.34
-#     y = (Math.atan(Math.pow(Math.E, y * (Math.PI / 180))) * 360) / Math.PI - 90
-#   return [x, y]; }
 
 
 def is_int(s):
@@ -286,6 +248,8 @@ def is_int(s):
 
 
 def is_float(s):
+    re_float = re.compile(r'[-+]?([0-9]*[.])?[0-9]+([eE][-+]?\d+)?')
+
     matches = re_float.match(s)
     if matches == None:
         return False
@@ -293,6 +257,7 @@ def is_float(s):
 
 
 def floatstr2int(s):
+    re_floatstr2int = re.compile(r'([-+]?[0-9]+)\.?[0-9]*')
     matches = re_floatstr2int.match(s)
     if matches == None:
         return False
@@ -303,38 +268,6 @@ def floatstr2int(s):
 
 def utc_ms(add_time: int = 0):
     return (time.time_ns()//1000000)+add_time
-
-
-class gps_class():
-    def __init__(self):
-        # GSA
-        self.modeAM, self.modeFIX = None, None
-        self.used_sv = []
-        self.pdop, self.hdop, self.vdop = None, None, None
-
-        self.hog_true, self.hog_magnetic = None, None
-        self.sog_knots, self.sog_km = None, None
-        self.lat, self.lon, self.magnetic_variation = 0, 0, 0
-        self.datetime = datetime(1, 1, 1)
-
-
-class satellites_class():
-    def __init__(self):
-        # GSV
-        self.sat_list = {}
-
-    def modify(self, data):  # prn, elevation, azimuth, snr
-        if len(data) != 4:
-            return
-        # zz = []
-        # for x in data:            z = in
-        data = [int(x) if x.isdigit() else None for x in data]
-        if not (data[0] in self.sat_list):
-            self.sat_list[data[0]] = {}
-        self.sat_list[data[0]]['elevation'] = data[1]
-        self.sat_list[data[0]]['azimuth'] = data[2]
-        self.sat_list[data[0]]['snr'] = data[3]
-        self.sat_list[data[0]]['last_access'] = utc_ms()
 
 
 class bit_collector():
@@ -463,137 +396,6 @@ class bit_collector():
             'group': group
 
         }
-
-
-def create_vdm(message_id, data, header='AI', group_id: int = 1):
-    def get_checksum(s: str):
-        cs = 0
-        for c in s:
-            cs ^= ord(c)
-        return cs
-
-    def collect_bits(bc):
-
-        if not (message_id in VDM_DEFS):
-            raise Exception(f'[MSG_ID:{message_id}] Not found in VDM_DEFS')
-        if not (message_id in VDM_TYPES):
-            raise Exception(f'[MSG_ID:{message_id}] Not found in VDM_TYPES')
-
-        bc.add_bits(message_id, 6)
-
-        for field in VDM_DEFS[message_id]:
-            # print(f'Field: {field["name"]} ({field})')
-            if field['start'] != bc.length:
-                raise Exception(f'[MSG_ID:{message_id}] No field with start at: {bc.length}')
-            if not (field['name'] in data):
-                if 'default' in field:
-                    value = field['default']
-                else:
-                    raise Exception(f'[MSG_ID:{message_id}] No default value for {field["name"]}')
-            else:
-                value = data[field['name']]
-            # value_bitlen=bit_collector.get_len(value)
-            # if value_bitlen > field['len']:
-            #     raise Exception(f'[MSG_ID:{message_id}] Value for {field["name"]}={value} exceed maximum length. Maximum allowed {field["len"]}, got {value_bitlen}.')
-            value_type = type(value)
-            if field['type'] == NMEA_TYPE_INT:
-                bc.add_bits(value, field['len'])
-            elif field['type'] == NMEA_TYPE_FLOAT:
-                bc.add_bits(round(value*field['exp']), field['len'])
-            elif field['type'] == NMEA_TYPE_STRING:
-                if value_type != str:
-                    raise Exception(f'[MSG_ID:{message_id}] {field["name"]}: string expected, got {value_type}')
-                value = value.upper()
-                l = len(value)
-                if l < field['len']:
-                    value += '@' * (field['len']-l)
-                    l = field['len']
-                else:
-                    l = min(len(value), field['len'])
-
-                for c in range(l):
-                    i = bit_collector.NMEA_CHARS.find(value[c])
-
-                    if i == -1:
-                        raise Exception(f'[MSG_ID:{message_id}] {field["name"]}: unsupported character `{value[c]}`')
-                    bc.add_bits(i, 6)
-            else:
-                raise Exception(f'[MSG_ID:{message_id}] Unknown field type ({field["type"]})')
-        if bc.length != VDM_TYPES[message_id]['len']:
-            raise Exception(f'[MSG_ID:{message_id}] Message len error, expected {VDM_TYPES[message_id]["len"]}, got {bc.length}')
-
-    def create_str(bc):
-        MAX_PAYLOAD = 336  # max bits in one message
-        ptr = 0
-        result = []
-        collected = 0
-        collect = r''
-        while ptr < bc.length:
-            b = bc.get_int(ptr, 6)
-            c = b + 48
-            if c > 87:
-                c += 8
-            # print(f'{b}\t{c}\t{chr(c)}')
-            collect += chr(c)
-            ptr += 6
-            collected += 6
-            if collected >= MAX_PAYLOAD or ptr >= bc.length:
-                result.append(collect)
-                collected = 0
-                collect = r''
-        return result
-
-    def create_messages(messages: dict, header: str, channel: str = 'A', group_id: int = None):
-        result = []
-        messages_count = len(messages)
-        for i in range(messages_count):
-            s = header+'VDM'
-            s = f'{s},{messages_count},{i+1},'
-            if messages_count > 1:
-                s = f'{s}{messages_count}'
-            s = f'{s},{channel},{messages[i]},0'
-
-            cs = get_checksum(s)
-            s = f'!{s}*{format(cs, "02X")}'
-            print(s)
-            result.append(s)
-
-        return result
-
-    bitcollector = bit_collector()
-    collect_bits(bitcollector)
-    messages = create_str(bitcollector)
-    if len(messages) > 1 and group_id is None:
-        raise Exception(f'[MSG_ID:{message_id}] For multiple message sequences you must provide GROUP_ID')
-    nmea = create_messages(messages, header)
-    # print(nmea)
-    return nmea
-
-    def get_str(self,  start: int, length: int):
-
-        result = ''
-        while length > 0:
-            code = self.get_int(start, 6)
-            # print(code)
-            if code == 0:  # or code==32:
-                break
-            result += bit_collector.NMEA_CHARS[code]
-            start += 6
-            length -= 1
-        return result
-
-    def decode_vdm(self, data, pad):
-        # print(f'datalen={len(data)} (data={data})')
-        for ch in data:
-            code = ord(ch)-48
-            if code > 40:
-                code -= 8
-            self.push(code, 6)
-        while (pad > 0):
-            self.push(0, 1)
-            pad -= 1
-        # self.length -= int(pad)
-        # print(f'char={ch}\tcode={code}\tbufflen={self.length}')
 
 
 def is_zero(v):
