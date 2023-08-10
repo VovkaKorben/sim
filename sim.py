@@ -159,26 +159,12 @@ try:
                         timers[tmr_no][2] -= timers[tmr_no][1]
                     timers[tmr_no][2] += UPD_INTERVAL
 
-                if len(collect) > 0:
-
-                    NMEA_LINES.extend(collect)
-                    if len(NMEA_LINES) > NMEA_LINES_COUNT:
-                        NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
-
-                    if NETWORK_MODE != NETWORK_DISABLED:
-                        packet = ""
-                        for line in NMEA_LINES:
-                            packet += line + NLBR
-                        packet = bytes(packet, 'ascii')
-                        if NETWORK_MODE == NETWORK_UDP:
-                            sock.sendto(packet, (ini['network']['ip'], ini['network']['port']))
-                        else:  # NETWORK_MODE == NETWORK_TCP:
-                            conn.sendall(packet)
-
-                    collect = []
+                NMEA_LINES.extend(collect)
+                if len(NMEA_LINES) > NMEA_LINES_COUNT:
+                    NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
 
                 if DISPLAY_ENABLED:
-
+                    os.system('clear')
                     line_no = 1
 
                     # header
@@ -205,11 +191,27 @@ try:
                         at(line_no, 0, line)
                         line_no += 1
 
+                if len(collect) > 0:
+
+                    
+
+                    if NETWORK_MODE != NETWORK_DISABLED:
+                        packet = ""
+                        for line in NMEA_LINES:
+                            packet += line + NLBR
+                        packet = bytes(packet, 'ascii')
+                        if NETWORK_MODE == NETWORK_UDP:
+                            sock.sendto(packet, (ini['network']['ip'], ini['network']['port']))
+                        else:  # NETWORK_MODE == NETWORK_TCP:
+                            conn.sendall(packet)
+
+                    collect = []
+
                 for s in ships:
                     s.cycle(UPD_INTERVAL)
 
                 time.sleep(UPD_INTERVAL)
-                os.system('clear')
+
         except ConnectionResetError:
             print("[E] ConnectionResetError")
         except ConnectionAbortedError:

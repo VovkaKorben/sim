@@ -5,10 +5,10 @@
         "limit":300
     },
     "network": {
-        "enabled": 0,
+        "enabled": 1,
         "mode": "tcp",
-        "ip": "192.168.1.10",
-        "port": 1
+        "ip": "192.168.1.13",
+        "port": 17777
     },
     "display": {
         "enabled": 1,
