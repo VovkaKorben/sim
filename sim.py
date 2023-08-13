@@ -55,7 +55,7 @@ NETWORK_TCP = 1
 NETWORK_UDP = 2
 
 mode_descr = ["⏳", "🐢🚀", "↻ ROT ↺"]
-COLUMN_INTERVAL = 3
+COLUMN_INTERVAL = 2
 COLUMNS = [  # len | default name | align( Left = false, default; Right = true)
     [10, "MMSI"],
     [10, "NAME"],
@@ -64,7 +64,8 @@ COLUMNS = [  # len | default name | align( Left = false, default; Right = true)
     #    [10, "PARAM", True],
     [10, "ANGLE", True],
     [10, "km/h", True],
-    [10, "ΔX, ΔY", True],
+    [6, "ΔX", True],
+    [6, "ΔY", True],
     [25, "LON,LAT", True],
 ]
 
@@ -173,8 +174,9 @@ try:
                         # draw_text(line_no, 4, "{:.3f}".format(s.param_value))
                         draw_text(line_no, 4, "{:.1f}".format(to_deg(s.angle)))
                         draw_text(line_no, 5, "{:.3f}".format(s.speed*3.6))
-                        draw_text(line_no, 6, "{:+.0f}, {:+.0f}".format(s.delta_met[LON], s.delta_met[LAT]))
-                        draw_text(line_no, 7, "{:.7f}, {:.7f}".format(s.deg[LON], s.deg[LAT]))
+                        draw_text(line_no, 6, "{:+.0f}".format(s.delta_met[LON]))
+                        draw_text(line_no, 7, "{:+.0f}".format(s.delta_met[LAT]))
+                        draw_text(line_no, 8, "{:.7f}, {:.7f}".format(s.deg[LON], s.deg[LAT]))
                         line_no += 1
 
                     # draw last N NMEA messages
@@ -200,7 +202,7 @@ try:
                 for s in ships:
                     s.cycle(UPD_INTERVAL)
 
-                time.sleep(UPD_INTERVAL)
+                time.sleep(UPD_INTERVAL/20)
 
         except ConnectionResetError:
             print("[E] ConnectionResetError")

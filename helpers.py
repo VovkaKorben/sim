@@ -138,13 +138,14 @@ class ship():
 
     def init_mode(self):
         self.mode = random.randint(0, 2)
-        # self.mode = 2
+        # self.mode = 1
         if self.mode == 0:  # wait
             self.param_time = random.randint(10, 20)
         elif self.mode == 1:  # speed change
-            speed_delta = random.uniform(0, self.maxspeed) - self.speed
+            desired_speed = random.uniform(0, self.maxspeed)
+            speed_delta = desired_speed - self.speed
             self.param_time = math.ceil(abs(speed_delta)/self.velocity)
-            self.param_value = self.velocity / self.param_time
+            self.param_value = speed_delta / self.param_time
         elif self.mode == 2:  # rotate
             rotate_delta = random.uniform(-π, +π)
             self.param_time = math.ceil(abs(rotate_delta) / self.rotate_speed)
