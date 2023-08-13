@@ -174,7 +174,7 @@ class ship():
             bc.push(int(self.deg[LON]*600000), 28)  # lon
             bc.push(int(self.deg[LAT]*600000), 27)  # lat
             bc.push(int(self.angle_deg()*10), 12)  # cog
-            bc.push(int(self.angle), 9)  # hog
+            bc.push(int(self.angle_deg()), 9)  # hog
             bc.push(now.second, 6)  # seconds
             bc.push(0, 2)  # maneuver = Not available (default)
             bc.push(0, 3)  # spare

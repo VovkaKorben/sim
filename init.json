@@ -1,7 +1,7 @@
 {
     "area": {
-        "lon": 29.0000000,
-        "lat": 62.0000000,
+        "lon":  21.470805989743354,
+        "lat": 60.16783241839092,
         "limit":300
     },
     "network": {
@@ -32,8 +32,8 @@
             "type": 80,
             "maxspeed": 30,
             "mmsi": 225221211,
-            "width": 45,
-            "height": 200,
+            "width": 15,
+            "height": 55,
             "draught": 15,
             "active": 1
         },
@@ -45,7 +45,7 @@
             "width": 10,
             "height": 30,
             "draught": 2.5,
-            "active": 0
+            "active":0
         },
         {
             "shipname": "Borealis",
@@ -55,7 +55,7 @@
             "width": 12,
             "height": 70,
             "draught": 3,
-            "active": 0
+            "active":0
         }
     ]
 }

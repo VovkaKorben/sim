@@ -78,9 +78,9 @@ COLUMNS = [  # len | default name | align( Left = false, default; Right = true)
 
 # work arrays
 NMEA_LINES = []
-timers = [  # VDM group ID | update interval | current value (added dynamically)
-    [1, 3],
-    [5, 5]
+timers = [  # VDM group ID | update interval | current value | msg counts
+    [1, 3, 0, 0],
+    [5, 5, 0, 0]
 ]
 
 
@@ -111,8 +111,7 @@ DISPLAY_ENABLED = ini['display']['enabled']
 if DISPLAY_ENABLED:
     NMEA_LINES_COUNT = ini['display']['lines']
     UPD_INTERVAL = ini['display']['interval']
-# MSG1_DELAY = 2  # send msg type 1 each 3 seconds
-# MSG5_DELAY = 5  # send msg type 5 each 10 seconds
+
 
 # load area
 MAX_DIST = ini['area']['limit']
@@ -131,8 +130,8 @@ group = 1
 
 # update timers (first output will be immediatelly)
 for tmr_no in range(len(timers)):
-    # timers[tmr_no].append(timers[tmr_no][1])
-    timers[tmr_no].append(0.0)
+    pass
+    # timers[tmr_no][2]=timers[tmr_no][1]
 
 try:
     while True:
@@ -156,6 +155,7 @@ try:
                             result = s.get_vdm(group, timers[tmr_no][0])
                             group = result['group']
                             collect.extend(result['data'])
+                        timers[tmr_no][3] += 1
                         timers[tmr_no][2] -= timers[tmr_no][1]
                     timers[tmr_no][2] += UPD_INTERVAL
 
@@ -192,8 +192,6 @@ try:
                         line_no += 1
 
                 if len(collect) > 0:
-
-                    
 
                     if NETWORK_MODE != NETWORK_DISABLED:
                         packet = ""
