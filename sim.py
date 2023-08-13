@@ -1,11 +1,3 @@
-# ID NAME     MODE
-# 1 TARDIS
-"""
-ship mode
-0 no-action timer (second)
-1 speed change (speed) - can be decreasing or increasing
-2 rotate (angle)
-"""
 from datetime import datetime
 import sys
 import os
