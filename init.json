@@ -1,8 +1,8 @@
 {
     "area": {
-        "lon":  21.470805989743354,
+        "lon": 21.470805989743354,
         "lat": 60.16783241839092,
-        "limit":300
+        "limit": 300
     },
     "network": {
         "enabled": 1,
@@ -25,7 +25,7 @@
             "height": 12,
             "draught": 1.2,
             "own": true,
-            "active": 0
+            "active": 1
         },
         {
             "shipname": "Tardis",
@@ -45,7 +45,7 @@
             "width": 10,
             "height": 30,
             "draught": 2.5,
-            "active":0
+            "active": 1
         },
         {
             "shipname": "Borealis",
@@ -55,7 +55,7 @@
             "width": 12,
             "height": 70,
             "draught": 3,
-            "active":0
+            "active": 1
         }
     ]
 }
