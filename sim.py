@@ -126,95 +126,99 @@ for tmr_no in range(len(timers)):
     pass
     # timers[tmr_no][2]=timers[tmr_no][1]
 
-try:
-    while True:
-        try:
-            line_no = 0
-            collect = []
-            os.system('clear')
+# try:
+while True:
+    try:
+        line_no = 0
+        collect = []
+        os.system('clear')
 
-            if NETWORK_MODE == NETWORK_TCP:
-                print(f"[.] Wait for connection at tcp://{ini['network']['ip']}:{ini['network']['port']}")
-                conn, addr = sock.accept()
-                print(f"[I] Connected by {addr}")
+        if NETWORK_MODE == NETWORK_TCP:
+            print(f"[.] Wait for connection at tcp://{ini['network']['ip']}:{ini['network']['port']}")
+            conn, addr = sock.accept()
+            print(f"[I] Connected by {addr}")
 
-            while True:
+        while True:
 
-                # process message timers
-                for tmr_no in range(len(timers)):
+            # process message timers
+            for tmr_no in range(len(timers)):
 
-                    while timers[tmr_no][2] >= timers[tmr_no][1]:
-                        for s in ships:
-                            result = s.get_vdm(group, timers[tmr_no][0])
-                            group = result['group']
-                            collect.extend(result['data'])
-                        timers[tmr_no][3] += 1
-                        timers[tmr_no][2] -= timers[tmr_no][1]
-                    timers[tmr_no][2] += UPD_INTERVAL
-
-                NMEA_LINES.extend(collect)
-                if len(NMEA_LINES) > NMEA_LINES_COUNT:
-                    NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
-
-                if DISPLAY_ENABLED:
-                    os.system('clear')
-                    line_no = 1
-
-                    # header
-                    for col_no in range(len(COLUMNS)):
-                        draw_text(line_no, col_no)
-                    line_no += 1
-
-                    # ships data
+                while timers[tmr_no][2] >= timers[tmr_no][1]:
                     for s in ships:
-                        draw_text(line_no, 0, s.mmsi)
-                        draw_text(line_no, 1, s.shipname)
-                        draw_text(line_no, 2, mode_descr[s.mode])
-                        draw_text(line_no, 3, "{:.1f}".format(s.param_time))
-                        # draw_text(line_no, 4, "{:.3f}".format(s.param_value))
-                        draw_text(line_no, 4, "{:.1f}".format(to_deg(s.angle)))
-                        draw_text(line_no, 5, "{:.3f}".format(s.speed*3.6))
-                        draw_text(line_no, 6, "{:+.0f}".format(s.delta_met[LON]))
-                        draw_text(line_no, 7, "{:+.0f}".format(s.delta_met[LAT]))
-                        draw_text(line_no, 8, "{:.7f}, {:.7f}".format(s.deg[LON], s.deg[LAT]))
-                        line_no += 1
+                        result = s.get_vdm(group, timers[tmr_no][0])
+                        group = result['group']
+                        collect.extend(result['data'])
+                    timers[tmr_no][3] += 1
+                    timers[tmr_no][2] -= timers[tmr_no][1]
+                timers[tmr_no][2] += UPD_INTERVAL
 
-                    # draw last N NMEA messages
-                    line_no += 1
-                    for line in NMEA_LINES:
-                        at(line_no, 0, line)
-                        line_no += 1
+            NMEA_LINES.extend(collect)
+            if len(NMEA_LINES) > NMEA_LINES_COUNT:
+                NMEA_LINES = NMEA_LINES[len(NMEA_LINES)-NMEA_LINES_COUNT:]
 
-                if len(collect) > 0:
+            if DISPLAY_ENABLED:
+                os.system('clear')
+                line_no = 1
 
-                    if NETWORK_MODE != NETWORK_DISABLED:
-                        packet = ""
-                        for line in NMEA_LINES:
-                            packet += line + NLBR
-                        packet = bytes(packet, 'ascii')
-                        if NETWORK_MODE == NETWORK_UDP:
-                            sock.sendto(packet, (ini['network']['ip'], ini['network']['port']))
-                        else:  # NETWORK_MODE == NETWORK_TCP:
-                            conn.sendall(packet)
+                # header
+                for col_no in range(len(COLUMNS)):
+                    draw_text(line_no, col_no)
+                line_no += 1
 
-                    collect = []
-
+                # ships data
                 for s in ships:
-                    s.cycle(UPD_INTERVAL)
+                    draw_text(line_no, 0, s.mmsi)
+                    draw_text(line_no, 1, s.shipname)
+                    draw_text(line_no, 2, mode_descr[s.mode])
+                    draw_text(line_no, 3, "{:.1f}".format(s.param_time))
+                    # draw_text(line_no, 4, "{:.3f}".format(s.param_value))
+                    draw_text(line_no, 4, "{:.1f}".format(to_deg(s.angle)))
+                    draw_text(line_no, 5, "{:.3f}".format(s.speed*3.6))
+                    draw_text(line_no, 6, "{:+.0f}".format(s.delta_met[LON]))
+                    draw_text(line_no, 7, "{:+.0f}".format(s.delta_met[LAT]))
+                    draw_text(line_no, 8, "{:.7f}, {:.7f}".format(s.deg[LON], s.deg[LAT]))
+                    line_no += 1
 
-                time.sleep(UPD_INTERVAL/20)
+                # draw last N NMEA messages
+                line_no += 1
+                for line in NMEA_LINES:
+                    at(line_no, 0, line)
+                    line_no += 1
 
-        except ConnectionResetError:
-            print("[E] ConnectionResetError")
-        except ConnectionAbortedError:
-            print("[E] ConnectionAbortedError")
-        except KeyboardInterrupt:
-            print('\nInterrupted\n')
-            sock.close()
-            try:
-                sys.exit(130)
-            except SystemExit:
-                os._exit(130)
+            if len(collect) > 0:
+
+                if NETWORK_MODE != NETWORK_DISABLED:
+                    packet = ""
+                    for line in NMEA_LINES:
+                        packet += line + NLBR
+                    packet = bytes(packet, 'ascii')
+                    if NETWORK_MODE == NETWORK_UDP:
+                        sock.sendto(packet, (ini['network']['ip'], ini['network']['port']))
+                    else:  # NETWORK_MODE == NETWORK_TCP:
+                        conn.sendall(packet)
+
+                collect = []
+
+            for s in ships:
+                s.cycle(UPD_INTERVAL)
+
+            time.sleep(UPD_INTERVAL/20)
+
+    except ConnectionResetError:
+        print("[E] ConnectionResetError")
+    except ConnectionAbortedError:
+        print("[E] ConnectionAbortedError")
+    except KeyboardInterrupt:
+        print('\nInterrupted\n')
+        sock.close()
+        try:
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130)
+    except BrokenPipeError:
+        print('\nBrokenPipeError\n')
+        # sock.close()
+"""
 except:
     line_no += 1
     at(line_no, 0, '------ MAIN ERROR ------')
@@ -223,3 +227,4 @@ except:
     for el in err:
         at(line_no, 0, el)
         line_no += 1
+"""
